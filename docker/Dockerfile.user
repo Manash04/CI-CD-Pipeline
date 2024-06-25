@@ -1,18 +1,38 @@
-FROM node:20.12.0-alpine3.19
+# Use the Node.js image as the base image
+FROM node:20.12.0-alpine3.19 AS build
 
+# Set the working directory
 WORKDIR /usr/src/app
 
+# Copy necessary files
 COPY package.json package-lock.json turbo.json tsconfig.json ./
-
 COPY apps ./apps
 COPY packages ./packages
 
 # Install dependencies
 RUN npm install
-# Can you add a script to the global package.json that does this?
+
+# Generate Prisma client
 RUN npm run db:generate
 
-# Can you filter the build down to just one app?
-RUN npm run build
+# Build the user app
+RUN npm run build --filter=apps/user-app...
 
+# Production image
+FROM node:20.12.0-alpine3.19 AS production
+
+# Set the working directory
+WORKDIR /usr/src/app
+
+# Copy necessary files from the build stage
+COPY --from=build /usr/src/app/package.json /usr/src/app/package-lock.json ./
+COPY --from=build /usr/src/app/apps/user-app ./apps/user-app
+
+# Install only production dependencies
+RUN npm install --production
+
+# Expose the necessary port (if any)
+EXPOSE 3000
+
+# Command to run the user app
 CMD ["npm", "run", "start-user-app"]
